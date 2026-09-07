@@ -8,8 +8,13 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = True
 
-    # ── PostgreSQL ─────────────────────────────────────────────────────────────
-    DATABASE_URL: str = "postgresql+asyncpg://agri_user:agri_pass@localhost:5432/agri_db"
+    # ── PostgreSQL (individual fields + composed URL) ──────────────────────────
+    POSTGRES_USER: str = "agri_user"
+    POSTGRES_PASSWORD: str = "agri_pass"
+    POSTGRES_DB: str = "agri_db"
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 6543
+    DATABASE_URL: str = "postgresql+asyncpg://agri_user:agri_pass@localhost:6543/agri_db"
 
     # ── Redis ──────────────────────────────────────────────────────────────────
     REDIS_HOST: str = "localhost"
@@ -22,10 +27,13 @@ class Settings(BaseSettings):
 
     # ── Open-Meteo ─────────────────────────────────────────────────────────────
     OPEN_METEO_BASE_URL: str = "https://api.open-meteo.com/v1"
+    OPEN_METEO_SOIL_URL: str = "https://api.open-meteo.com/v1/forecast"
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",  # Silently ignore any unrecognised .env fields
+    }
 
 
 @lru_cache()
