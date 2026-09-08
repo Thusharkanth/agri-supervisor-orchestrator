@@ -1,84 +1,110 @@
 """
-Coordinator Node — STUB VERSION (Day 2)
-----------------------------------------
-Simple rule-based conflict resolver for now.
-Day 5: Will use Ollama LLM to generate the natural language explanation.
+Coordinator Fan-In Node (Reconciliation & Explainable Trace Synthesis)
+----------------------------------------------------------------------
+Executes after all parallel domain agents complete. Evaluates evidence,
+identifies conflicting claims, applies agronomic trade-off rules, and
+synthesizes natural language explanations for the farmer dashboard.
 """
-from collections import Counter
-from app.graph.state import OverallGraphState
+import logging
+from typing import Optional
+from app.graph.state import OverallGraphState, AgentEvidence
+
+logger = logging.getLogger("agri.coordinator")
 
 
 async def coordinator_node(state: OverallGraphState) -> dict:
     """
-    Reads all AgentEvidence from the state bus and applies
-    conflict resolution rules to output a final decision.
-
-    Conflict Rules (Priority Order):
-    1. If Weather says DELAY and rain forecast > 10mm → DELAY wins (safety rule)
-    2. If 2+ agents say IRRIGATE → IRRIGATE
-    3. If 2+ agents say DO_NOT_IRRIGATE → DO_NOT_IRRIGATE
-    4. Default fallback → DELAY_IRRIGATION (cautious)
+    Fan-In node aggregating agent outputs and resolving agronomic conflicts.
     """
-    print(f"[Coordinator] Received {len(state.agent_outputs)} agent outputs")
+    logger.info(f"[Coordinator] Reconciling evidence from {len(state.agent_outputs)} parallel agents")
 
-    outputs = state.agent_outputs
-    claims = [o.claim for o in outputs]
+    outputs = {ev.agent_name: ev for ev in state.agent_outputs}
+    soil_ev: Optional[AgentEvidence] = outputs.get("SoilWaterAgent")
+    weather_ev: Optional[AgentEvidence] = outputs.get("WeatherAgent")
+    crop_ev: Optional[AgentEvidence] = outputs.get("CropStageAgent")
 
-    print(f"[Coordinator] Claims received: {claims}")
+    conflict_detected = False
+    final_decision = "DO_NOT_IRRIGATE"
+    final_volume = 0.0
+    trace = ""
+    confidence = 0.90
 
-    # ── Rule 1: Weather veto — if weather says DELAY, it usually wins ─────────
-    weather_out = next((o for o in outputs if o.agent_name == "WeatherAgent"), None)
-    if weather_out and weather_out.claim == "DELAY_IRRIGATION" and weather_out.confidence_score >= 0.70:
-        final_decision = "DELAY_IRRIGATION"
-        conflict_detected = "IRRIGATE" in claims
-        trace = (
-            f"WeatherAgent flagged high-confidence rain forecast (confidence={weather_out.confidence_score:.0%}). "
-            f"Evidence: {weather_out.primary_evidence}. "
-            f"Overrides soil moisture deficit to avoid wasted irrigation."
-        )
-    else:
-        # ── Rule 2 & 3: Majority vote ──────────────────────────────────────────
-        claim_counts = Counter(claims)
-        most_common_claim, count = claim_counts.most_common(1)[0]
-
-        conflict_detected = len(set(c for c in claims if c != "NEUTRAL")) > 1
-
-        if count >= 2:
-            final_decision = most_common_claim if most_common_claim != "NEUTRAL" else "DELAY_IRRIGATION"
+    # ── Rule 1: Pre-Harvest Drying Priority ───────────────────────────────────
+    if crop_ev and crop_ev.claim == "DO_NOT_IRRIGATE":
+        final_decision = "DO_NOT_IRRIGATE"
+        final_volume = 0.0
+        confidence = 0.93
+        if soil_ev and soil_ev.claim == "IRRIGATE":
+            conflict_detected = True
+            trace = (
+                "Agronomic Override: Crop is in pre-harvest maturation/senescence stage. "
+                "Irrigation is stopped despite low soil moisture to allow grain dry-down and prevent fungal rotting."
+            )
         else:
-            # ── Rule 4: Cautious fallback ──────────────────────────────────────
-            final_decision = "DELAY_IRRIGATION"
+            trace = "Crop is in maturation stage. Normal dry-down proceeding."
 
+    # ── Rule 2: Soil Depleted vs Weather Imminent Rain (Classic Conflict) ────
+    elif soil_ev and soil_ev.claim == "IRRIGATE" and weather_ev and weather_ev.claim == "DELAY_IRRIGATION":
+        conflict_detected = True
+        final_decision = "DELAY_IRRIGATION"
+        final_volume = 0.0
+        confidence = round((soil_ev.confidence_score + weather_ev.confidence_score) / 2, 2)
         trace = (
-            f"Agent votes: {dict(claim_counts)}. "
-            f"Majority rule applied. "
-            f"Conflict detected: {conflict_detected}. "
-            f"Final: {final_decision}."
+            f"Conflict Detected & Reconciled: Root-zone moisture is depleted ({soil_ev.primary_evidence}), "
+            f"but imminent natural precipitation ({weather_ev.primary_evidence}) will hydrate crops. "
+            f"Irrigation delayed to conserve pumping energy and prevent root waterlogging."
         )
 
-    # Calculate average confidence of agents that voted for the final decision
-    supporting = [o for o in outputs if o.claim == final_decision or o.claim == "NEUTRAL"]
-    avg_confidence = sum(o.confidence_score for o in supporting) / len(supporting) if supporting else 0.5
+    # ── Rule 3: Soil Depleted & Dry Weather (Clear Irrigate Action) ───────────
+    elif soil_ev and soil_ev.claim == "IRRIGATE":
+        conflict_detected = False
+        final_decision = "IRRIGATE"
+        final_volume = soil_ev.recommended_volume_liters_sqm
+        confidence = soil_ev.confidence_score
+        
+        crop_note = f" Crop status: {crop_ev.primary_evidence}" if crop_ev else ""
+        trace = (
+            f"Consensus Reached: Root-zone moisture is depleted below threshold ({soil_ev.primary_evidence}). "
+            f"Weather forecast indicates no incoming rainfall to offset water deficit.{crop_note}"
+        )
 
-    recommendation_text = _build_recommendation_text(final_decision, trace, avg_confidence)
+    # ── Rule 4: Soil Sufficient ───────────────────────────────────────────────
+    elif soil_ev and soil_ev.claim == "DO_NOT_IRRIGATE":
+        conflict_detected = False
+        final_decision = "DO_NOT_IRRIGATE"
+        final_volume = 0.0
+        confidence = soil_ev.confidence_score
+        trace = (
+            f"No Irrigation Needed: Soil moisture remains in the optimal buffer range ({soil_ev.primary_evidence})."
+        )
 
-    print(f"[Coordinator] Final decision: {final_decision} | Confidence: {avg_confidence:.0%}")
+    # ── Rule 5: Fallback ──────────────────────────────────────────────────────
+    else:
+        conflict_detected = False
+        final_decision = "DELAY_IRRIGATION"
+        final_volume = 0.0
+        confidence = 0.70
+        trace = "Telemetry inconclusive across domain agents. Recommend holding irrigation pending sensor sync."
+
+    recommendation_text = _format_farmer_advisory(final_decision, final_volume, trace, confidence)
+
+    logger.info(f"[Coordinator] Decision: {final_decision} (Conflict: {conflict_detected}, Confidence: {confidence:.0%})")
 
     return {
         "conflict_detected": conflict_detected,
         "conflict_resolution_trace": trace,
         "final_decision": final_decision,
-        "final_confidence": round(avg_confidence, 2),
+        "final_confidence": confidence,
         "final_recommendation_text": recommendation_text,
     }
 
 
-def _build_recommendation_text(decision: str, trace: str, confidence: float) -> str:
-    """Generate a simple natural language recommendation string."""
-    action_map = {
-        "IRRIGATE": "✅ Irrigate your crops now.",
-        "DELAY_IRRIGATION": "⚠️ Delay irrigation — conditions suggest waiting.",
-        "DO_NOT_IRRIGATE": "⛔ Do not irrigate — soil moisture levels are sufficient.",
-    }
-    action = action_map.get(decision, "⚠️ Please review conditions manually.")
-    return f"{action} (Confidence: {confidence:.0%}) — Reasoning: {trace}"
+def _format_farmer_advisory(decision: str, volume: float, trace: str, confidence: float) -> str:
+    """Format glanceable, high-contrast advisory text for the Farmer Dashboard."""
+    if decision == "IRRIGATE":
+        return f"Apply {volume} L/m² of water today. {trace}"
+    elif decision == "DELAY_IRRIGATION":
+        return f"Hold irrigation for the next 12–24 hours. {trace}"
+    elif decision == "DO_NOT_IRRIGATE":
+        return f"No irrigation required today. {trace}"
+    return f"Monitor soil conditions closely. {trace}"
