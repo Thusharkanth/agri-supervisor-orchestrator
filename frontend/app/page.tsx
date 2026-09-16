@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Leaf, History, Trophy, Sparkles, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Leaf, History, Trophy, Sparkles, AlertCircle, CheckCircle2, CloudSun, MapPin, Calendar, Sprout } from "lucide-react";
 import { FarmSelector } from "../components/FarmSelector";
-import { LiveTelemetryStrip } from "../components/LiveTelemetryStrip";
 import { DecisionHeroCard } from "../components/DecisionHeroCard";
-import { ConflictTraceAccordion } from "../components/ConflictTraceAccordion";
-import { DomainEvidenceGrid } from "../components/DomainEvidenceGrid";
 import { FeedbackOverrideBar } from "../components/FeedbackOverrideBar";
+import { TechnicalDetailsDrawer } from "../components/TechnicalDetailsDrawer";
+import { AgriChatWidget } from "../components/chatbot/AgriChatWidget";
 import { GoldenBenchmarkTab } from "../components/GoldenBenchmarkTab";
 import { DecisionHistoryModal } from "../components/DecisionHistoryModal";
 import { fetchLiveTelemetry, requestIrrigationDecision } from "../lib/api";
@@ -42,14 +41,13 @@ export default function FarmerDashboard() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const loadPreset = (farmId: string, crop: string, lat: number, lon: number, plantDate: string) => {
-    setFormData({
-      farm_id: farmId,
-      crop_type: crop,
+  const handleLocationSelect = (lat: number, lon: number, townName: string) => {
+    setFormData((prev) => ({
+      ...prev,
       latitude: lat,
       longitude: lon,
-      planting_date: plantDate,
-    });
+      farm_id: `FARM-${townName.toUpperCase().replace(/\s+/g, "-")}`,
+    }));
     fetchTelemetry(lat, lon);
   };
 
@@ -74,7 +72,7 @@ export default function FarmerDashboard() {
       // Run decision pipeline
       const res = await requestIrrigationDecision(formData);
       setDecision(res);
-      showToast("Multi-Agent decision computed successfully!");
+      showToast("Agri-Decision computed successfully!");
     } catch (err: any) {
       alert("Pipeline Execution Error: " + err.message);
     } finally {
@@ -99,11 +97,11 @@ export default function FarmerDashboard() {
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-bold text-white tracking-tight">AgriDecision Advisory</h1>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  Next.js 14 App Router
+                  Sri Lanka Smart Farming
                 </span>
               </div>
               <p className="text-[11px] text-slate-400">
-                LangGraph Parallel Fan-Out → Fan-In Multi-Agent Architecture
+                Multi-Agent Real-Time Irrigation & Agronomic Advisory
               </p>
             </div>
           </div>
@@ -120,7 +118,7 @@ export default function FarmerDashboard() {
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Dashboard</span>
+                <span>Farmer Advisory</span>
               </button>
 
               <button
@@ -152,38 +150,108 @@ export default function FarmerDashboard() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {activeTab === "dashboard" ? (
           <>
-            {/* Top Grid: Form Inputs + Live Telemetry */}
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-              <div className="lg:col-span-2">
+            {/* Top Row: Farm & Location Selector + Quick Weather Overview */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-5">
                 <FarmSelector
                   formData={formData}
                   onChange={handleFieldChange}
                   onRunEngine={handleRunEngine}
                   loading={loadingDecision}
-                  onPresetSelect={loadPreset}
+                  onLocationSelect={handleLocationSelect}
                 />
               </div>
 
-              <div className="lg:col-span-3">
-                <LiveTelemetryStrip
-                  telemetry={telemetry}
-                  loading={loadingTelemetry}
-                  onRefresh={() => fetchTelemetry(formData.latitude, formData.longitude, true)}
-                />
+              {/* Quick Farm & Live Weather Snapshot */}
+              <div className="lg:col-span-7 flex flex-col justify-between bg-slate-900/60 border border-slate-800 rounded-3xl p-6 shadow-xl space-y-4">
+                <div>
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <CloudSun className="w-5 h-5 text-amber-400" />
+                      <h3 className="text-sm font-bold text-white">Live Field Snapshot</h3>
+                    </div>
+                    <span className="text-[11px] font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800/40 px-2.5 py-0.5 rounded-full">
+                      ● Active Field Telemetry
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                    <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Temperature</div>
+                      <div className="text-lg font-bold text-white mt-0.5">
+                        {telemetry?.hourly?.temperature_2m?.[0] !== undefined
+                          ? `${telemetry.hourly.temperature_2m[0].toFixed(1)}°C`
+                          : "--"}
+                      </div>
+                      <div className="text-[10px] text-slate-500">Live Field Reading</div>
+                    </div>
+
+                    <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Rain Forecast</div>
+                      <div className="text-lg font-bold text-cyan-400 mt-0.5">
+                        {telemetry?.hourly?.precipitation?.slice(0, 24)
+                          ? `${telemetry.hourly.precipitation.slice(0, 24).reduce((a, b) => a + b, 0).toFixed(1)} mm`
+                          : "--"}
+                      </div>
+                      <div className="text-[10px] text-slate-500">Next 24 Hours</div>
+                    </div>
+
+                    <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Soil Moisture</div>
+                      <div className="text-lg font-bold text-emerald-400 mt-0.5">
+                        {telemetry?.hourly?.soil_moisture_3_to_9cm?.[0] !== undefined
+                          ? `${(telemetry.hourly.soil_moisture_3_to_9cm[0] * 100).toFixed(1)}%`
+                          : "--"}
+                      </div>
+                      <div className="text-[10px] text-slate-500">Root-zone (3-9cm)</div>
+                    </div>
+
+                    <div className="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3">
+                      <div className="text-[10px] font-bold uppercase text-slate-400">Crop Selected</div>
+                      <div className="text-lg font-bold text-amber-400 mt-0.5 truncate">
+                        {formData.crop_type}
+                      </div>
+                      <div className="text-[10px] text-slate-500">
+                        Planted {formData.planting_date}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Practical Quick Tip Banner */}
+                <div className="bg-gradient-to-r from-emerald-950/40 via-teal-950/30 to-slate-950 border border-emerald-800/30 rounded-2xl p-3.5 flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+                    <Sprout className="w-4 h-4" />
+                  </div>
+                  <p className="text-xs text-slate-300 leading-snug">
+                    <strong className="text-emerald-300">Quick Farmer Tip:</strong> When you change location or crop, tap <span className="text-emerald-400 font-semibold">"Get Irrigation Advisory"</span> to update decisions with live soil moisture and rain forecasts.
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Tier 1: Immediate Action (Decision Hero Card) */}
-            <DecisionHeroCard decision={decision} loading={loadingDecision} />
+            {/* Tier 1: Actionable Farmer Hero Card */}
+            <DecisionHeroCard decision={decision} loading={loadingDecision} cropName={formData.crop_type} />
 
-            {/* Tier 2: The "Why" (Coordinator Conflict Trace Accordion) */}
-            <ConflictTraceAccordion decision={decision} />
-
-            {/* Tier 3: Domain Evidence Grid */}
-            <DomainEvidenceGrid decision={decision} />
-
-            {/* Tier 4: Feedback Override Bar */}
+            {/* Tier 2: Feedback & Farmer Override */}
             <FeedbackOverrideBar decision={decision} onFeedbackSubmitted={showToast} />
+
+            {/* Tier 3: Collapsible Technical Drawer (For Researchers & Supervisors) */}
+            <TechnicalDetailsDrawer
+              decision={decision}
+              telemetry={telemetry}
+              loadingTelemetry={loadingTelemetry}
+              onRefreshTelemetry={() => fetchTelemetry(formData.latitude, formData.longitude, true)}
+            />
+
+            {/* Floating LLM Agronomic Assistant Widget */}
+            <AgriChatWidget
+              cropType={formData.crop_type}
+              plantingDate={formData.planting_date}
+              farmId={formData.farm_id}
+              decision={decision}
+              telemetry={telemetry}
+            />
           </>
         ) : (
           <GoldenBenchmarkTab />
@@ -207,3 +275,4 @@ export default function FarmerDashboard() {
     </div>
   );
 }
+

@@ -90,3 +90,23 @@ export interface DecisionHistoryItem {
   final_recommendation_text?: string;
   created_at: string;
 }
+
+export interface ChatAdvisoryRequest {
+  question: string;
+  crop_type: string;
+  planting_date?: string;
+  farm_id?: string;
+  decision?: DecisionType;
+  confidence?: number;
+  volume_liters_sqm?: number;
+  evidence_summary?: string;
+  conflict_trace?: string;
+  agent_outputs?: AgentEvidence[];
+}
+
+export interface ChatAdvisoryResponse {
+  answer: string;
+  action_tip: string;
+  suggested_followups: string[];
+}
+

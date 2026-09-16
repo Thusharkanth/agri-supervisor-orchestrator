@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Trophy, Play, CheckCircle2, XCircle, AlertCircle, Loader2 } from "lucide-react";
-import { requestIrrigationDecision } from "../lib/api";
+import { evaluateBenchmarkScenario } from "../lib/api";
 import { DecisionResponse } from "../lib/types";
 
 interface BenchmarkScenario {
@@ -11,6 +11,9 @@ interface BenchmarkScenario {
   latitude: number;
   longitude: number;
   planting_date: string;
+  mock_soil_moisture: number;
+  mock_rain_prob_12h: number;
+  mock_rain_vol_12h: number;
   expected_decision: string;
   expected_conflict: boolean;
 }
@@ -24,6 +27,9 @@ const BENCHMARK_SCENARIOS: BenchmarkScenario[] = [
     latitude: 8.3114,
     longitude: 80.4037,
     planting_date: "2026-07-15",
+    mock_soil_moisture: 0.12,
+    mock_rain_prob_12h: 5,
+    mock_rain_vol_12h: 0.0,
     expected_decision: "IRRIGATE",
     expected_conflict: false,
   },
@@ -35,6 +41,9 @@ const BENCHMARK_SCENARIOS: BenchmarkScenario[] = [
     latitude: 7.4863,
     longitude: 80.3623,
     planting_date: "2026-07-10",
+    mock_soil_moisture: 0.15,
+    mock_rain_prob_12h: 85,
+    mock_rain_vol_12h: 22.0,
     expected_decision: "DELAY_IRRIGATION",
     expected_conflict: true,
   },
@@ -46,6 +55,9 @@ const BENCHMARK_SCENARIOS: BenchmarkScenario[] = [
     latitude: 7.2906,
     longitude: 80.6337,
     planting_date: "2026-08-01",
+    mock_soil_moisture: 0.31,
+    mock_rain_prob_12h: 20,
+    mock_rain_vol_12h: 1.0,
     expected_decision: "DO_NOT_IRRIGATE",
     expected_conflict: false,
   },
@@ -57,6 +69,9 @@ const BENCHMARK_SCENARIOS: BenchmarkScenario[] = [
     latitude: 7.9403,
     longitude: 81.0188,
     planting_date: "2026-04-10",
+    mock_soil_moisture: 0.16,
+    mock_rain_prob_12h: 10,
+    mock_rain_vol_12h: 0.0,
     expected_decision: "DO_NOT_IRRIGATE",
     expected_conflict: true,
   },
@@ -68,6 +83,9 @@ const BENCHMARK_SCENARIOS: BenchmarkScenario[] = [
     latitude: 6.8728,
     longitude: 81.3507,
     planting_date: "2026-08-15",
+    mock_soil_moisture: 0.34,
+    mock_rain_prob_12h: 15,
+    mock_rain_vol_12h: 0.0,
     expected_decision: "DO_NOT_IRRIGATE",
     expected_conflict: false,
   },
@@ -80,13 +98,7 @@ export const GoldenBenchmarkTab: React.FC = () => {
   const runScenario = async (sc: BenchmarkScenario) => {
     setRunningId(sc.scenario_id);
     try {
-      const res = await requestIrrigationDecision({
-        farm_id: sc.farm_id,
-        crop_type: sc.crop_type,
-        latitude: sc.latitude,
-        longitude: sc.longitude,
-        planting_date: sc.planting_date,
-      });
+      const res = await evaluateBenchmarkScenario(sc);
       setResults((prev) => ({ ...prev, [sc.scenario_id]: res }));
     } catch (err: any) {
       console.error("Benchmark scenario error:", err);

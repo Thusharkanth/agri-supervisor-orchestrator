@@ -65,3 +65,33 @@ export async function fetchDecisionHistory(
   }
   return res.json();
 }
+
+export async function askAgriAssistant(
+  payload: import("./types").ChatAdvisoryRequest
+): Promise<import("./types").ChatAdvisoryResponse> {
+  const url = `${API_BASE_URL}/api/v1/chat/ask`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Chat API error: ${errText || res.statusText}`);
+  }
+  return res.json();
+}
+
+export async function evaluateBenchmarkScenario(payload: any): Promise<DecisionResponse> {
+  const url = `${API_BASE_URL}/api/v1/decisions/benchmark/evaluate`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    throw new Error("Benchmark evaluation error");
+  }
+  return res.json();
+}
+
