@@ -92,6 +92,8 @@ Phase 1: Core MVP (2 Weeks) ──► Phase 2: Upgrades (Post-Eval) ──► Ph
 
 ## 4. LangGraph Multi-Agent Architecture
 
+![Multi-Agent Agricultural Decision-Support System Architecture](docs/architecture_diagrams/multi_agent_system_architecture.jpg)
+
 ```
                   ┌──────────────────────┐
                   │    START (Router)    │
