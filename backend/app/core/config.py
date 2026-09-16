@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     OPEN_METEO_BASE_URL: str = "https://api.open-meteo.com/v1"
     OPEN_METEO_SOIL_URL: str = "https://api.open-meteo.com/v1/forecast"
 
+    # ── LangSmith Tracing & Observability ──────────────────────────────────────
+    LANGCHAIN_TRACING_V2: str = "false"
+    LANGCHAIN_API_KEY: str = ""
+    LANGCHAIN_PROJECT: str = "agri-decision-support"
+    LANGCHAIN_ENDPOINT: str = "https://api.smith.langchain.com"
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",
@@ -38,8 +44,20 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings() -> Settings:
-    """Return cached settings instance (loaded once at startup)."""
-    return Settings()
+    """Return cached settings instance and sync LangSmith environment variables."""
+    import os
+    s = Settings()
+    if s.LANGCHAIN_API_KEY:
+        os.environ["LANGCHAIN_TRACING_V2"] = s.LANGCHAIN_TRACING_V2
+        os.environ["LANGCHAIN_API_KEY"] = s.LANGCHAIN_API_KEY
+        os.environ["LANGCHAIN_PROJECT"] = s.LANGCHAIN_PROJECT
+        os.environ["LANGCHAIN_ENDPOINT"] = s.LANGCHAIN_ENDPOINT
+        os.environ["LANGSMITH_TRACING"] = "true"
+        os.environ["LANGSMITH_API_KEY"] = s.LANGCHAIN_API_KEY
+        os.environ["LANGSMITH_PROJECT"] = s.LANGCHAIN_PROJECT
+        os.environ["LANGSMITH_ENDPOINT"] = s.LANGCHAIN_ENDPOINT
+    return s
 
 
 settings = get_settings()
+
