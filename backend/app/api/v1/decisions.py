@@ -189,3 +189,62 @@ async def get_decision_history(
     except Exception as exc:
         logger.warning(f"Error fetching history ({exc})")
         return []
+
+
+# ── Benchmark Evaluation Endpoints ──────────────────────────────────────────
+@router.post(
+    "/benchmark/evaluate",
+    summary="Run benchmark test scenario against simulated telemetry dataset",
+)
+async def evaluate_benchmark_scenario(payload: dict):
+    from unittest.mock import patch
+    from datetime import datetime, timezone
+    from app.schemas.telemetry import TelemetryPayload, HourlyTelemetry
+
+    lat = float(payload.get("latitude", 8.3114))
+    lon = float(payload.get("longitude", 80.4037))
+    moisture = float(payload.get("mock_soil_moisture", 0.18))
+    rain_prob = int(payload.get("mock_rain_prob_12h", 0))
+    rain_vol = float(payload.get("mock_rain_vol_12h", 0.0))
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    hours = [f"{now_iso[:13]}:00" for _ in range(24)]
+
+    mock_tel = TelemetryPayload(
+        latitude=lat,
+        longitude=lon,
+        hourly=HourlyTelemetry(
+            time=hours,
+            precipitation_probability=[rain_prob] * 24,
+            precipitation=[rain_vol / 12.0] * 12 + [0.0] * 12,
+            soil_moisture_0_to_1cm=[moisture] * 24,
+            soil_moisture_3_to_9cm=[moisture] * 24,
+            et0_fao_evapotranspiration=[4.0] * 24,
+            temperature_2m=[30.0] * 24,
+        ),
+        fetched_at=datetime.now(timezone.utc),
+        source="golden-benchmark-mock",
+        cached=True,
+        staleness_warning=False,
+    )
+
+    with patch("app.services.open_meteo.open_meteo_service.get_forecast", return_value=mock_tel):
+        state = OverallGraphState(
+            farm_id=payload.get("farm_id", "BENCH-01"),
+            crop_type=payload.get("crop_type", "Maize"),
+            latitude=lat,
+            longitude=lon,
+            planting_date=payload.get("planting_date", "2026-07-15"),
+        )
+        result = await agri_graph.ainvoke(state.model_dump())
+
+    return {
+        "final_decision": result.get("final_decision"),
+        "final_confidence": result.get("final_confidence", 0.90),
+        "conflict_detected": result.get("conflict_detected", False),
+        "conflict_resolution_trace": result.get("conflict_resolution_trace", ""),
+        "final_recommendation_text": result.get("final_recommendation_text", ""),
+        "agent_outputs": result.get("agent_outputs", []),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+
