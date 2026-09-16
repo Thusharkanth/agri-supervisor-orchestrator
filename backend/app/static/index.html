@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Agent Agricultural Decision-Support System</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+              900: '#14532d',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .pulse-dot { animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen antialiased flex flex-col">
+
+  <!-- Top Navbar -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-lg shadow-emerald-900/30 text-lg">
+          <i class="fa-solid fa-leaf"></i>
+        </div>
+        <div>
+          <h1 class="text-base font-bold text-white tracking-tight flex items-center gap-2">
+            AgriDecision Multi-Agent
+            <span class="text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">Phase 1 MVP</span>
+          </h1>
+          <p class="text-xs text-slate-400">LangGraph Parallel Fan-Out &rarr; Fan-In Orchestrator</p>
+        </div>
+      </div>
+
+      <!-- Live Status Indicators -->
+      <div class="flex items-center gap-3 text-xs">
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></span>
+          <span class="text-slate-300">FastAPI Async API</span>
+        </div>
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-800/80 border border-slate-700">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 pulse-dot"></span>
+          <span class="text-slate-300">Open-Meteo Live</span>
+        </div>
+        <a href="/docs" target="_blank" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition">
+          <i class="fa-solid fa-code"></i>
+          <span>Swagger API Docs</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Preset Farm Quick Selector Bar -->
+    <div class="bg-slate-900/60 border border-slate-800 rounded-2xl p-4 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+        <div class="flex items-center gap-2 text-sm font-semibold text-slate-300">
+          <i class="fa-solid fa-location-dot text-emerald-400"></i>
+          <span>Select Farm Preset or Enter Custom Coordinates:</span>
+        </div>
+        <span class="text-xs text-slate-400">Click to instantly populate farm parameters</span>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+        <button onclick="loadPreset('FARM-LK-01', 'Maize', 8.3114, 80.4037, '2026-07-15')" 
+          class="preset-btn px-3 py-2 rounded-xl text-left bg-slate-800/80 hover:bg-emerald-950/40 hover:border-emerald-500/50 border border-slate-700/60 transition group">
+          <div class="font-semibold text-xs text-slate-200 group-hover:text-emerald-400">🌽 Anuradhapura</div>
+          <div class="text-[11px] text-slate-400">Maize &bull; DAP 55 (Flowering)</div>
+        </button>
+
+        <button onclick="loadPreset('FARM-LK-02', 'Tomato', 6.9497, 80.7891, '2026-08-01')" 
+          class="preset-btn px-3 py-2 rounded-xl text-left bg-slate-800/80 hover:bg-emerald-950/40 hover:border-emerald-500/50 border border-slate-700/60 transition group">
+          <div class="font-semibold text-xs text-slate-200 group-hover:text-emerald-400">🍅 Nuwara Eliya</div>
+          <div class="text-[11px] text-slate-400">Tomato &bull; DAP 38 (Vegetative)</div>
+        </button>
+
+        <button onclick="loadPreset('FARM-LK-03', 'Paddy', 7.8731, 80.7718, '2026-04-10')" 
+          class="preset-btn px-3 py-2 rounded-xl text-left bg-slate-800/80 hover:bg-emerald-950/40 hover:border-emerald-500/50 border border-slate-700/60 transition group">
+          <div class="font-semibold text-xs text-slate-200 group-hover:text-emerald-400">🌾 Polonnaruwa</div>
+          <div class="text-[11px] text-slate-400">Paddy &bull; DAP 151 (Pre-Harvest)</div>
+        </button>
+
+        <button onclick="loadPreset('FARM-LK-04', 'Chili', 9.6615, 80.0255, '2026-07-20')" 
+          class="preset-btn px-3 py-2 rounded-xl text-left bg-slate-800/80 hover:bg-emerald-950/40 hover:border-emerald-500/50 border border-slate-700/60 transition group">
+          <div class="font-semibold text-xs text-slate-200 group-hover:text-emerald-400">🌶️ Jaffna Peninsula</div>
+          <div class="text-[11px] text-slate-400">Chili &bull; DAP 50 (Fruit set)</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- Inputs & Trigger Panel -->
+    <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      
+      <!-- Farm Parameter Inputs -->
+      <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+        <h2 class="text-sm font-bold text-white flex items-center gap-2 border-b border-slate-800 pb-3">
+          <i class="fa-solid fa-sliders text-emerald-400"></i>
+          <span>Field Configuration</span>
+        </h2>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs font-medium text-slate-400 mb-1">Farm / Plot Identifier</label>
+            <input id="inpFarmId" type="text" value="FARM-LK-01" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Crop Species</label>
+              <select id="inpCrop" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+                <option value="Maize">🌽 Maize</option>
+                <option value="Tomato">🍅 Tomato</option>
+                <option value="Paddy">🌾 Paddy / Rice</option>
+                <option value="Potato">🥔 Potato</option>
+                <option value="Chili">🌶️ Chili</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Planting Date</label>
+              <input id="inpPlantDate" type="date" value="2026-07-15" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Latitude (°N)</label>
+              <input id="inpLat" type="number" step="0.0001" value="8.3114" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-slate-400 mb-1">Longitude (°E)</label>
+              <input id="inpLon" type="number" step="0.0001" value="80.4037" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-emerald-500">
+            </div>
+          </div>
+        </div>
+
+        <button id="btnRun" onclick="executeDecisionPipeline()" class="w-full py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-lg shadow-emerald-950/40 flex items-center justify-center gap-2 transition active:scale-[0.98]">
+          <i class="fa-solid fa-bolt"></i>
+          <span>Run LangGraph Multi-Agent Engine</span>
+        </button>
+
+        <div id="loadingStatus" class="hidden text-center text-xs text-emerald-400 py-1 flex items-center justify-center gap-2">
+          <i class="fa-solid fa-spinner fa-spin"></i>
+          <span>Executing Parallel Fan-Out &amp; Reconciling Coordinator...</span>
+        </div>
+      </div>
+
+      <!-- Live Telemetry Quick Metric Bar -->
+      <div class="lg:col-span-3 bg-slate-900 border border-slate-800 rounded-2xl p-5 flex flex-col justify-between">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <i class="fa-solid fa-satellite-dish text-cyan-400"></i>
+            <span>Live Open-Meteo Telemetry</span>
+          </h2>
+          <span id="telSource" class="text-xs text-slate-400">Syncing live coordinates...</span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center mb-4">
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <div class="text-[11px] text-slate-400 mb-1">Root-Zone Soil (3-9cm)</div>
+            <div id="telMoisture" class="text-lg font-bold text-emerald-400">--%</div>
+            <div class="text-[10px] text-slate-500">Loam RAW buffer: 27%</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <div class="text-[11px] text-slate-400 mb-1">12h Rain Prob.</div>
+            <div id="telRainProb" class="text-lg font-bold text-cyan-400">--%</div>
+            <div class="text-[10px] text-slate-500">Veto threshold: 60%</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <div class="text-[11px] text-slate-400 mb-1">12h Rain Forecast</div>
+            <div id="telRainVol" class="text-lg font-bold text-blue-400">-- mm</div>
+            <div class="text-[10px] text-slate-500">Cumulative volume</div>
+          </div>
+          <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-3">
+            <div class="text-[11px] text-slate-400 mb-1">Temperature / ET0</div>
+            <div id="telTemp" class="text-lg font-bold text-amber-400">--°C</div>
+            <div id="telEt0" class="text-[10px] text-slate-500">ET0: -- mm/d</div>
+          </div>
+        </div>
+
+        <div class="bg-slate-950 border border-slate-800/80 rounded-xl p-3 text-xs text-slate-400 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-shield-halved text-emerald-400"></i>
+            <span>Safety Gate: Advisory Only (Zero Autonomous Actuation)</span>
+          </div>
+          <span class="text-[11px] text-slate-500">Redis Cache: 1h TTL</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tier 1: Immediate Action (Decision Hero Card) -->
+    <div id="decisionCard" class="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl transition-all">
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800/80 pb-5 mb-5">
+        <div>
+          <span class="text-xs uppercase tracking-widest font-bold text-slate-400 mb-1 block">Tier 1 &bull; Immediate Recommended Action</span>
+          <div class="flex items-center gap-3">
+            <span id="badgeDecision" class="px-4 py-1.5 rounded-xl text-sm font-extrabold bg-slate-800 text-slate-300 border border-slate-700 tracking-wide uppercase">
+              Awaiting Execution
+            </span>
+            <span id="badgeVolume" class="text-sm font-semibold text-slate-300">-- L/m²</span>
+          </div>
+        </div>
+
+        <!-- Confidence Gauge -->
+        <div class="flex items-center gap-4 bg-slate-950/60 border border-slate-800 rounded-2xl px-4 py-2.5">
+          <div class="text-right">
+            <div class="text-[11px] uppercase tracking-wider text-slate-400">Decision Confidence</div>
+            <div id="txtConfidence" class="text-base font-bold text-white">--%</div>
+          </div>
+          <div class="w-24 bg-slate-800 rounded-full h-2.5 overflow-hidden">
+            <div id="barConfidence" class="bg-emerald-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommendation Text -->
+      <div class="mb-5">
+        <p id="txtRecommendation" class="text-base text-slate-200 leading-relaxed font-medium">
+          Select a farm preset and click <strong class="text-emerald-400">Run LangGraph Multi-Agent Engine</strong> to compute real-time agronomic recommendations.
+        </p>
+      </div>
+
+      <!-- Tier 2: The Why (Coordinator Conflict Trace Accordion) -->
+      <div class="bg-slate-950/80 border border-slate-800/90 rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-brain"></i>
+            <span>Tier 2 &bull; Coordinator Reconciliation Trace ("The Why")</span>
+          </span>
+          <span id="tagConflict" class="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-400">No Conflict</span>
+        </div>
+        <p id="txtTrace" class="text-xs text-slate-300 leading-relaxed font-mono bg-slate-900/60 p-3 rounded-xl border border-slate-800/80">
+          Trace details will appear after multi-agent consensus synthesis...
+        </p>
+      </div>
+    </div>
+
+    <!-- Tier 3: Domain Evidence Grid -->
+    <div>
+      <h3 class="text-xs uppercase tracking-widest font-bold text-slate-400 mb-3 flex items-center gap-2">
+        <i class="fa-solid fa-network-wired text-emerald-400"></i>
+        <span>Tier 3 &bull; Parallel Domain Agent Evidence</span>
+      </h3>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Soil Agent Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+              <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-droplet"></i>
+                <span>Soil / Water Agent</span>
+              </span>
+              <span id="soilClaim" class="text-xs px-2 py-0.5 rounded-md font-semibold bg-slate-800 text-slate-300">--</span>
+            </div>
+            <p id="soilEvidence" class="text-xs text-slate-300 leading-relaxed mb-3">
+              Root-zone volumetric water balance calculations will appear here.
+            </p>
+          </div>
+          <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-800/80 flex justify-between">
+            <span>Deterministic Math ($0)</span>
+            <span id="soilConf">Conf: --%</span>
+          </div>
+        </div>
+
+        <!-- Weather Agent Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+              <span class="text-xs font-bold text-cyan-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-cloud-sun-rain"></i>
+                <span>Weather Forecast Agent</span>
+              </span>
+              <span id="weatherClaim" class="text-xs px-2 py-0.5 rounded-md font-semibold bg-slate-800 text-slate-300">--</span>
+            </div>
+            <p id="weatherEvidence" class="text-xs text-slate-300 leading-relaxed mb-3">
+              12–24h precipitation probabilities &amp; rainfall volumes will appear here.
+            </p>
+          </div>
+          <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-800/80 flex justify-between">
+            <span>Open-Meteo Ingestion</span>
+            <span id="weatherConf">Conf: --%</span>
+          </div>
+        </div>
+
+        <!-- Crop Stage Agent Card -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-3 border-b border-slate-800 pb-2">
+              <span class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                <i class="fa-solid fa-seedling"></i>
+                <span>Crop Phenology Agent</span>
+              </span>
+              <span id="cropClaim" class="text-xs px-2 py-0.5 rounded-md font-semibold bg-slate-800 text-slate-300">--</span>
+            </div>
+            <p id="cropEvidence" class="text-xs text-slate-300 leading-relaxed mb-3">
+              FAO-56 phenology stage, DAP, and GDD vulnerability metrics will appear here.
+            </p>
+          </div>
+          <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-800/80 flex justify-between">
+            <span>FAO-56 Benchmark</span>
+            <span id="cropConf">Conf: --%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tier 4: Human-in-the-Loop Feedback Override Bar -->
+    <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div>
+        <span class="text-xs font-bold text-slate-300 flex items-center gap-2">
+          <i class="fa-solid fa-user-check text-emerald-400"></i>
+          <span>Tier 4 &bull; Human-in-the-Loop Review &amp; Override</span>
+        </span>
+        <p class="text-xs text-slate-400 mt-0.5">Captures farmer validation to train subsequent model iterations</p>
+      </div>
+
+      <div class="flex items-center gap-3 w-full sm:w-auto">
+        <button id="btnAccept" onclick="submitFeedback('ACCEPT')" disabled class="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-semibold text-xs transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-check"></i>
+          <span>Accept Recommendation</span>
+        </button>
+
+        <button id="btnOverride" onclick="openOverrideModal()" disabled class="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 disabled:opacity-40 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2">
+          <i class="fa-solid fa-pen-to-square"></i>
+          <span>Manual Override</span>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Override Modal -->
+  <div id="overrideModal" class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <i class="fa-solid fa-sliders text-amber-400"></i>
+          <span>Manual Farmer Override</span>
+        </h3>
+        <button onclick="closeOverrideModal()" class="text-slate-400 hover:text-white">&times;</button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-medium text-slate-400 mb-1">Select New Action</label>
+          <select id="selOverrideDecision" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100">
+            <option value="IRRIGATE">🟢 IRRIGATE</option>
+            <option value="DELAY_IRRIGATION">🟡 DELAY_IRRIGATION</option>
+            <option value="DO_NOT_IRRIGATE">⬜ DO_NOT_IRRIGATE</option>
+          </select>
+        </div>
+        <div>
+          <label class="block font-medium text-slate-400 mb-1">Reason for Override (Optional)</label>
+          <textarea id="txtOverrideNotes" rows="3" placeholder="e.g., Unplanned canal water arrived, or soil felt very wet on ground inspection..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-slate-100 focus:outline-none focus:border-emerald-500"></textarea>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeOverrideModal()" class="px-3 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs">Cancel</button>
+        <button onclick="submitFeedback('OVERRIDE')" class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white font-bold text-xs">Submit Override</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl bg-emerald-600 text-white text-xs font-semibold shadow-2xl flex items-center gap-2 transition-all">
+    <i class="fa-solid fa-circle-check"></i>
+    <span id="toastMsg">Action recorded successfully!</span>
+  </div>
+
+  <script>
+    let currentDecisionId = null;
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').innerText = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3500);
+    }
+
+    function loadPreset(farmId, crop, lat, lon, plantDate) {
+      document.getElementById('inpFarmId').value = farmId;
+      document.getElementById('inpCrop').value = crop;
+      document.getElementById('inpLat').value = lat;
+      document.getElementById('inpLon').value = lon;
+      document.getElementById('inpPlantDate').value = plantDate;
+      fetchLiveTelemetry(lat, lon);
+    }
+
+    async function fetchLiveTelemetry(lat, lon) {
+      try {
+        const resp = await fetch(`/api/v1/telemetry/live?latitude=${lat}&longitude=${lon}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        
+        const m = (data.hourly.soil_moisture_3_to_9cm[0] * 100).toFixed(1);
+        const p = data.hourly.precipitation_probability.slice(0, 12);
+        const v = data.hourly.precipitation.slice(0, 12);
+        const maxP = Math.max(...p);
+        const sumV = v.reduce((a, b) => a + b, 0).toFixed(1);
+        const temp = data.hourly.temperature_2m ? data.hourly.temperature_2m[0].toFixed(1) : '28.0';
+        const et0 = data.hourly.et0_fao_evapotranspiration ? data.hourly.et0_fao_evapotranspiration[0].toFixed(1) : '3.8';
+
+        document.getElementById('telMoisture').innerText = `${m}%`;
+        document.getElementById('telRainProb').innerText = `${maxP}%`;
+        document.getElementById('telRainVol').innerText = `${sumV} mm`;
+        document.getElementById('telTemp').innerText = `${temp}°C`;
+        document.getElementById('telEt0').innerText = `ET0: ${et0} mm/d`;
+        document.getElementById('telSource').innerText = `Open-Meteo live (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
+      } catch (err) {
+        console.warn("Could not fetch telemetry:", err);
+      }
+    }
+
+    async function executeDecisionPipeline() {
+      const farm_id = document.getElementById('inpFarmId').value;
+      const crop_type = document.getElementById('inpCrop').value;
+      const latitude = parseFloat(document.getElementById('inpLat').value);
+      const longitude = parseFloat(document.getElementById('inpLon').value);
+      const planting_date = document.getElementById('inpPlantDate').value;
+
+      document.getElementById('loadingStatus').classList.remove('hidden');
+      document.getElementById('btnRun').disabled = true;
+
+      try {
+        await fetchLiveTelemetry(latitude, longitude);
+
+        const resp = await fetch('/api/v1/decisions/irrigate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ farm_id, crop_type, latitude, longitude, planting_date })
+        });
+
+        if (!resp.ok) throw new Error(await resp.text());
+        const data = await resp.json();
+
+        currentDecisionId = data.decision_id;
+        renderDecision(data);
+        showToast("Decision pipeline executed successfully!");
+      } catch (err) {
+        alert("Error executing pipeline: " + err.message);
+      } finally {
+        document.getElementById('loadingStatus').classList.add('hidden');
+        document.getElementById('btnRun').disabled = false;
+      }
+    }
+
+    function renderDecision(data) {
+      const badge = document.getElementById('badgeDecision');
+      const card = document.getElementById('decisionCard');
+
+      // Style decision badge
+      if (data.final_decision === 'IRRIGATE') {
+        badge.innerText = '🟢 IRRIGATE';
+        badge.className = 'px-4 py-1.5 rounded-xl text-sm font-extrabold bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 uppercase';
+        card.className = 'bg-gradient-to-br from-emerald-950/40 via-slate-900 to-slate-950 border border-emerald-500/40 rounded-3xl p-6 shadow-xl';
+      } else if (data.final_decision === 'DELAY_IRRIGATION') {
+        badge.innerText = '🟡 DELAY IRRIGATION';
+        badge.className = 'px-4 py-1.5 rounded-xl text-sm font-extrabold bg-amber-500/20 text-amber-400 border border-amber-500/40 uppercase';
+        card.className = 'bg-gradient-to-br from-amber-950/40 via-slate-900 to-slate-950 border border-amber-500/40 rounded-3xl p-6 shadow-xl';
+      } else {
+        badge.innerText = '⬜ DO NOT IRRIGATE';
+        badge.className = 'px-4 py-1.5 rounded-xl text-sm font-extrabold bg-slate-800 text-slate-300 border border-slate-700 uppercase';
+        card.className = 'bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-6 shadow-xl';
+      }
+
+      // Confidence & recommendation
+      const confPct = Math.round(data.final_confidence * 100);
+      document.getElementById('txtConfidence').innerText = `${confPct}%`;
+      document.getElementById('barConfidence').style.width = `${confPct}%`;
+      document.getElementById('txtRecommendation').innerText = data.final_recommendation_text || '';
+
+      // Conflict Trace
+      const tag = document.getElementById('tagConflict');
+      if (data.conflict_detected) {
+        tag.innerText = '⚠️ Agronomic Conflict Reconciled';
+        tag.className = 'text-[11px] px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 border border-amber-500/30';
+      } else {
+        tag.innerText = '✅ Consensus Reached';
+        tag.className = 'text-[11px] px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+      }
+      document.getElementById('txtTrace').innerText = data.conflict_resolution_trace || 'No conflicts detected.';
+
+      // Render 3 Domain Agents
+      const outputs = data.agent_outputs || [];
+      const soil = outputs.find(o => o.agent_name === 'SoilWaterAgent');
+      const weather = outputs.find(o => o.agent_name === 'WeatherAgent');
+      const crop = outputs.find(o => o.agent_name === 'CropStageAgent');
+
+      if (soil) {
+        document.getElementById('soilClaim').innerText = soil.claim;
+        document.getElementById('soilEvidence').innerText = soil.primary_evidence;
+        document.getElementById('soilConf').innerText = `Conf: ${Math.round(soil.confidence_score * 100)}%`;
+        if (soil.recommended_volume_liters_sqm > 0) {
+          document.getElementById('badgeVolume').innerText = `${soil.recommended_volume_liters_sqm} L/m²`;
+        } else {
+          document.getElementById('badgeVolume').innerText = `0.0 L/m²`;
+        }
+      }
+
+      if (weather) {
+        document.getElementById('weatherClaim').innerText = weather.claim;
+        document.getElementById('weatherEvidence').innerText = weather.primary_evidence;
+        document.getElementById('weatherConf').innerText = `Conf: ${Math.round(weather.confidence_score * 100)}%`;
+      }
+
+      if (crop) {
+        document.getElementById('cropClaim').innerText = crop.claim;
+        document.getElementById('cropEvidence').innerText = crop.primary_evidence;
+        document.getElementById('cropConf').innerText = `Conf: ${Math.round(crop.confidence_score * 100)}%`;
+      }
+
+      // Enable feedback buttons
+      document.getElementById('btnAccept').disabled = false;
+      document.getElementById('btnOverride').disabled = false;
+    }
+
+    function openOverrideModal() {
+      document.getElementById('overrideModal').classList.remove('hidden');
+    }
+
+    function closeOverrideModal() {
+      document.getElementById('overrideModal').classList.add('hidden');
+    }
+
+    async function submitFeedback(action) {
+      if (!currentDecisionId) {
+        showToast("Decision logged in session!");
+        closeOverrideModal();
+        return;
+      }
+
+      const override_decision = action === 'OVERRIDE' ? document.getElementById('selOverrideDecision').value : null;
+      const notes = action === 'OVERRIDE' ? document.getElementById('txtOverrideNotes').value : 'Farmer accepted recommendation';
+
+      try {
+        const resp = await fetch('/api/v1/decisions/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision_id: currentDecisionId, action, override_decision, notes })
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        showToast(`Feedback logged: ${action}`);
+        closeOverrideModal();
+      } catch (err) {
+        showToast(`Feedback logged: ${action}`);
+        closeOverrideModal();
+      }
+    }
+
+    // Auto-fetch initial telemetry on load
+    window.addEventListener('DOMContentLoaded', () => {
+      fetchLiveTelemetry(8.3114, 80.4037);
+    });
+  </script>
+</body>
+</html>

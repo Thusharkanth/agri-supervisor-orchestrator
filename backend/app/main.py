@@ -46,6 +46,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+
+# ── Static Dashboard Route ───────────────────────────────────────────────────
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(STATIC_DIR):
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+@app.get("/", tags=["Dashboard"], include_in_schema=False)
+async def serve_dashboard():
+    index_file = os.path.join(STATIC_DIR, "index.html")
+    if os.path.exists(index_file):
+        return FileResponse(index_file)
+    return {"status": "ok", "message": "AgriDecision API Gateway is running. Visit /docs for OpenAPI specs."}
+
 # ── Health Check ───────────────────────────────────────────────────────────────
 @app.get("/health", tags=["System"])
 async def health_check():
