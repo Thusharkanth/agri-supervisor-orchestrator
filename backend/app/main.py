@@ -7,6 +7,7 @@ from app.core.config import settings
 from app.services.db import init_db
 from app.api.v1.decisions import router as decisions_router
 from app.api.v1.telemetry import router as telemetry_router
+from app.chatbot import chat_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -71,3 +72,4 @@ async def health_check():
 # ── Register API Routers ───────────────────────────────────────────────────────
 app.include_router(decisions_router, prefix="/api/v1/decisions", tags=["Decisions"])
 app.include_router(telemetry_router, prefix="/api/v1/telemetry", tags=["Telemetry"])
+app.include_router(chat_router, prefix="/api/v1/chat", tags=["Advisory Assistant"])
